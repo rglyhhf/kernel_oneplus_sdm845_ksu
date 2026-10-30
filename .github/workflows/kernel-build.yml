@@ -2,6 +2,12 @@ name: Kernel build
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - "build/**"
+  pull_request:
+    branches:
+      - "crDroid-15.0"
 
 permissions:
   contents: read
@@ -12,7 +18,7 @@ concurrency:
 
 jobs:
   build:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-22.04
     timeout-minutes: 360
     steps:
       - name: Checkout
@@ -36,8 +42,9 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update
-          sudo apt-get install -y bc bison build-essential ccache flex libssl-dev \
-            libelf-dev lz4 make python3 python-is-python3 pahole device-tree-compiler
+          sudo apt-get install -y bc bison build-essential ccache curl flex git libelf-dev \
+            libncurses-dev libssl-dev lz4 make pahole python3 python-is-python3 \
+            rsync unzip zip device-tree-compiler
           if [[ "${{ steps.config.outputs.compiler }}" == "clang" ]]; then
             sudo apt-get install -y clang lld llvm
           else
