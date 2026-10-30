@@ -29,10 +29,8 @@ esac
 
 resolve_path() {
   case "$1" in
-    /*) printf '%s
-' "$1" ;;
-    *)  printf '%s/%s
-' "$ROOT_DIR" "$1" ;;
+    /*) printf '%s\n' "$1" ;;
+    *)  printf '%s/%s\n' "$ROOT_DIR" "$1" ;;
   esac
 }
 
