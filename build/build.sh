@@ -72,7 +72,7 @@ if is_yes "${USE_CCACHE:-no}"; then
   command -v ccache >/dev/null 2>&1 || die "USE_CCACHE=yes but ccache is not installed"
   export CCACHE_DIR="${CCACHE_DIR:-$ROOT_DIR/.ccache}"
   ccache -M "${CCACHE_SIZE:-5G}" >/dev/null
-  MAKE+=(CC="ccache ${CLANG_BIN:-clang}")
+  if [[ "$BUILD_COMPILER" == "clang" ]]; then\n    MAKE+=(CC="ccache $CLANG_BIN")\n  elif [[ -n "${CROSS_COMPILE:-}" ]]; then\n    MAKE+=(CC="ccache ${CROSS_COMPILE}gcc")\n  else\n    MAKE+=(CC="ccache gcc")\n  fi
 fi
 
 if is_yes "${MRPROPER:-no}"; then
