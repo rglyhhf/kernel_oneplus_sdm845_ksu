@@ -29,8 +29,10 @@ esac
 
 resolve_path() {
   case "$1" in
-    /*) printf '%s\n' "$1" ;;
-    *)  printf '%s/%s\n' "$ROOT_DIR" "$1" ;;
+    /*) printf '%s
+' "$1" ;;
+    *)  printf '%s/%s
+' "$ROOT_DIR" "$1" ;;
   esac
 }
 
@@ -70,9 +72,16 @@ fi
 
 if is_yes "${USE_CCACHE:-no}"; then
   command -v ccache >/dev/null 2>&1 || die "USE_CCACHE=yes but ccache is not installed"
-  CCACHE_DIR="$(resolve_path "${CCACHE_DIR:-.ccache}")"\n  export CCACHE_DIR
+  CCACHE_DIR="$(resolve_path "${CCACHE_DIR:-.ccache}")"
+  export CCACHE_DIR
   ccache -M "${CCACHE_SIZE:-5G}" >/dev/null
-  if [[ "$BUILD_COMPILER" == "clang" ]]; then\n    MAKE+=(CC="ccache $CLANG_BIN")\n  elif [[ -n "${CROSS_COMPILE:-}" ]]; then\n    MAKE+=(CC="ccache ${CROSS_COMPILE}gcc")\n  else\n    MAKE+=(CC="ccache gcc")\n  fi
+  if [[ "$BUILD_COMPILER" == "clang" ]]; then
+    MAKE+=(CC="ccache $CLANG_BIN")
+  elif [[ -n "${CROSS_COMPILE:-}" ]]; then
+    MAKE+=(CC="ccache ${CROSS_COMPILE}gcc")
+  else
+    MAKE+=(CC="ccache gcc")
+  fi
 fi
 
 if is_yes "${MRPROPER:-no}"; then
