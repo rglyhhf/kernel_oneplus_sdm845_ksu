@@ -23,17 +23,17 @@ bash build/build.sh
 | `ARCH` / `SUBARCH` | 目标架构，SDM845 默认 arm64 |
 | `DEFCONFIG` | 内核 defconfig 文件名 |
 | `BUILD_COMPILER` | `clang` 或 `gcc` |
-| `CLANG_BIN` / `LLVM_BIN` | Clang 与 LLVM 工具前缀 |
-| `CROSS_COMPILE` | 64 位 GNU 交叉工具链前缀 |
+| `CLANG_BIN` / `LLVM` / `LLVM_IAS` | Clang 命令、LLVM 构建模式与集成汇编器开关 |
+| `MAKE_COMMAND` | make 可执行文件或绝对路径 |\n| `CROSS_COMPILE` | 64 位 GNU 交叉工具链前缀 |
 | `CROSS_COMPILE_ARM32` | 32 位兼容工具链前缀 |
 | `CLANG_TRIPLE` | Clang 目标 triple |
-| `OUT_DIR` / `DIST_DIR` | 编译输出与分发目录，支持相对仓库根目录或绝对路径 |
+| `OUT_DIR` / `DIST_DIR` | 编译输出与分发目录，支持相对仓库根目录或绝对路径 |\n| `EXPORT_ARTIFACTS` / `EXPORT_DTBS` / `EXPORT_CONFIG` | 控制镜像、DTB 与最终配置文件的导出 |
 | `JOBS` | 并行任务数；`auto` 自动检测 |
 | `BUILD_TARGETS` | make 目标，空格分隔 |
 | `CLEAN_OUTPUT` | 编译前清理输出目录 |
 | `MRPROPER` | 执行 mrproper，优先级高于普通清理 |
 | `USE_CCACHE` / `CCACHE_SIZE` | 启用 ccache 与缓存容量 |
-| `LOCALVERSION` / `APPEND_LOCALVERSION` | 自定义内核版本后缀 |
+| `LOCALVERSION` / `APPEND_LOCALVERSION` | 自定义内核版本后缀 |\n| `KBUILD_BUILD_USER` / `KBUILD_BUILD_HOST` | 写入内核版本信息的构建者与主机标识 |\n| `SOURCE_DATE_EPOCH` | 可选 Unix 时间戳，用于固定构建时间元数据 |
 | `ENABLE_SECCOMP` | 配置阶段启用 SECCOMP 与 SECCOMP_FILTER |
 | `VERIFY_SECCOMP` | 检查最终 .config 是否启用两项配置 |
 | `RUN_OLDDEFCONFIG` | 配置变更后执行 olddefconfig |
