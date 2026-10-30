@@ -55,13 +55,12 @@ if [[ "${JOBS:-auto}" == "auto" || -z "${JOBS:-}" ]]; then
 fi
 [[ "$JOBS" =~ ^[1-9][0-9]*$ ]] || die "JOBS must be 'auto' or a positive integer"
 
-MAKE=(make -C "$ROOT_DIR" O="$OUT_DIR" ARCH="$ARCH")
+MAKE=("${MAKE_COMMAND:-make}" -C "$ROOT_DIR" O="$OUT_DIR" ARCH="$ARCH")
 if [[ -n "${SUBARCH:-}" ]]; then MAKE+=(SUBARCH="$SUBARCH"); fi
 
 if [[ "$BUILD_COMPILER" == "clang" ]]; then
   command -v "$CLANG_BIN" >/dev/null 2>&1 || die "clang not found: $CLANG_BIN"
   MAKE+=(CC="$CLANG_BIN" LLVM="${LLVM:-1}" LLVM_IAS="${LLVM_IAS:-1}")
-  [[ -n "${LLVM_BIN:-}" ]] && MAKE+=(LLVM_PREFIX="$LLVM_BIN")
   [[ -n "${CLANG_TRIPLE:-}" ]] && MAKE+=(CLANG_TRIPLE="$CLANG_TRIPLE")
   [[ -n "${CROSS_COMPILE:-}" ]] && MAKE+=(CROSS_COMPILE="$CROSS_COMPILE")
   [[ -n "${CROSS_COMPILE_ARM32:-}" ]] && MAKE+=(CROSS_COMPILE_ARM32="$CROSS_COMPILE_ARM32")
@@ -108,6 +107,9 @@ if is_yes "${VERIFY_SECCOMP:-yes}"; then
 fi
 
 MAKE+=( -j"$JOBS" )
+[[ -n "${KBUILD_BUILD_USER:-}" ]] && MAKE+=(KBUILD_BUILD_USER="$KBUILD_BUILD_USER")
+[[ -n "${KBUILD_BUILD_HOST:-}" ]] && MAKE+=(KBUILD_BUILD_HOST="$KBUILD_BUILD_HOST")
+[[ -n "${SOURCE_DATE_EPOCH:-}" ]] && MAKE+=(KBUILD_BUILD_TIMESTAMP="$(date -u -d "@$SOURCE_DATE_EPOCH" "+%Y-%m-%d %H:%M:%S")")
 if is_yes "${APPEND_LOCALVERSION:-yes}" && [[ -n "${LOCALVERSION:-}" ]]; then
   MAKE+=(LOCALVERSION="$LOCALVERSION")
 fi
