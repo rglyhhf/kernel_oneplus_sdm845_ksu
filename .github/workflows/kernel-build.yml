@@ -24,8 +24,10 @@ jobs:
         run: |
           set -euo pipefail
           source build/build.conf
-          echo "compiler=$BUILD_COMPILER" >> "$GITHUB_OUTPUT"\n          echo "arch=$ARCH" >> "$GITHUB_OUTPUT"
-          echo "out_dir=$OUT_DIR" >> "$GITHUB_OUTPUT"\n          echo "dist_dir=$DIST_DIR" >> "$GITHUB_OUTPUT"
+          echo "compiler=$BUILD_COMPILER" >> "$GITHUB_OUTPUT"
+          echo "arch=$ARCH" >> "$GITHUB_OUTPUT"
+          echo "out_dir=$OUT_DIR" >> "$GITHUB_OUTPUT"
+          echo "dist_dir=$DIST_DIR" >> "$GITHUB_OUTPUT"
           echo "defconfig=$DEFCONFIG" >> "$GITHUB_OUTPUT"
           echo "targets=$BUILD_TARGETS" >> "$GITHUB_OUTPUT"
 
@@ -54,7 +56,8 @@ jobs:
           path: |
             ${{ steps.config.outputs.out_dir }}/arch/${{ steps.config.outputs.arch }}/boot/Image*
             ${{ steps.config.outputs.out_dir }}/arch/${{ steps.config.outputs.arch }}/boot/dts/**/*.dtb
-            ${{ steps.config.outputs.out_dir }}/.config\n            ${{ steps.config.outputs.dist_dir }}/**
+            ${{ steps.config.outputs.out_dir }}/.config
+            ${{ steps.config.outputs.dist_dir }}/**
           if-no-files-found: error
           compression-level: 6
           retention-days: 14
