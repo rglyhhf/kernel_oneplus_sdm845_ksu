@@ -11,7 +11,7 @@ fi
 
 # Defaults may be overridden by build.conf.
 ARCH="arm64"
-DEFCONFIG="vendor/sdm845-perf_defconfig"
+DEFCONFIG="enchilada_defconfig"
 TOOLCHAIN="clang"
 CROSS_COMPILE="aarch64-linux-gnu-"
 CLANG_TRIPLE="aarch64-linux-gnu-"
