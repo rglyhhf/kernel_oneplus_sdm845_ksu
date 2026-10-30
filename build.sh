@@ -2,7 +2,7 @@
 # One-command build entry point for the OnePlus SDM845 kernel.
 set -Eeuo pipefail
 
-ROOT_DIR="$(cd -- "$(dirname -- -- "${BASH_SOURCE[0]}")" && pwd -P)"
+ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 CONFIG_FILE="${BUILD_CONFIG:-${ROOT_DIR}/build.config}"
 
 log()  { printf '[build] %s\n' "$*"; }
