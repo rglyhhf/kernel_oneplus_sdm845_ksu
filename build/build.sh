@@ -129,3 +129,18 @@ done
 if [[ -d "$OUT_DIR/arch/$ARCH/boot/dts" ]]; then
   echo "DTB directory: $OUT_DIR/arch/$ARCH/boot/dts"
 fi
+
+if is_yes "${EXPORT_ARTIFACTS:-yes}"; then
+  mkdir -p "$DIST_DIR"
+  shopt -s nullglob
+  images=("$OUT_DIR/arch/$ARCH/boot"/Image*)
+  if (("${#images[@]}")); then cp -f "${images[@]}" "$DIST_DIR/"; fi
+  if is_yes "${EXPORT_DTBS:-yes}" && [[ -d "$OUT_DIR/arch/$ARCH/boot/dts" ]]; then
+    mkdir -p "$DIST_DIR/dtbs"
+    find "$OUT_DIR/arch/$ARCH/boot/dts" -type f -name "*.dtb" -exec cp -f -t "$DIST_DIR/dtbs" {} +
+  fi
+  if is_yes "${EXPORT_CONFIG:-yes}" && [[ -f "$OUT_DIR/.config" ]]; then
+    cp -f "$OUT_DIR/.config" "$DIST_DIR/kernel.config"
+  fi
+  echo "Exported artifacts: $DIST_DIR"
+fi
