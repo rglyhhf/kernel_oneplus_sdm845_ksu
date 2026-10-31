@@ -23,6 +23,12 @@ extern void ksu_handle_vfs_fstat(int fd, loff_t *kstat_size_ptr);
 extern int ksu_handle_stat(int *dfd, struct filename **filename, int *flags);
 #endif
 
+#ifdef CONFIG_KSU_SUSFS_SUS_KSTAT
+extern bool susfs_is_inode_sus_kstat(struct inode *inode, bool *out_is_fuse);
+extern void susfs_sus_kstat_spoof_generic_fillattr(
+	struct inode *inode, struct kstat *stat, u32 result_mask);
+#endif
+
 #include <asm/uaccess.h>
 #include <asm/unistd.h>
 
@@ -80,11 +86,39 @@ int vfs_getattr_nosec(const struct path *path, struct kstat *stat,
 	stat->result_mask |= STATX_BASIC_STATS;
 	request_mask &= STATX_ALL;
 	query_flags &= KSTAT_QUERY_FLAGS;
-	if (inode->i_op->getattr)
-		return inode->i_op->getattr(path, stat, request_mask,
-					    query_flags);
+
+#ifdef CONFIG_KSU_SUSFS_SUS_KSTAT
+	u32 susfs_result_mask = 0;
+	int err;
+
+	if (susfs_is_current_app_uid()) {
+		bool is_fuse = false;
+
+		if (susfs_is_inode_sus_kstat(inode, &is_fuse))
+			susfs_result_mask = is_fuse ?
+				STATX_SUS_KSTAT_FUSE : STATX_SUS_KSTAT;
+	}
+#endif
+
+	if (inode->i_op->getattr) {
+		err = inode->i_op->getattr(path, stat,
+					   request_mask, query_flags);
+#ifdef CONFIG_KSU_SUSFS_SUS_KSTAT
+		if (!err && susfs_result_mask)
+			susfs_sus_kstat_spoof_generic_fillattr(
+				inode, stat, susfs_result_mask);
+#endif
+		return err;
+	}
 
 	generic_fillattr(inode, stat);
+
+#ifdef CONFIG_KSU_SUSFS_SUS_KSTAT
+	if (susfs_result_mask)
+		susfs_sus_kstat_spoof_generic_fillattr(
+			inode, stat, susfs_result_mask);
+#endif
+
 	return 0;
 }
 EXPORT_SYMBOL(vfs_getattr_nosec);
