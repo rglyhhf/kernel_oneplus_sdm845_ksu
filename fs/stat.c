@@ -81,6 +81,10 @@ int vfs_getattr_nosec(const struct path *path, struct kstat *stat,
 		      u32 request_mask, unsigned int query_flags)
 {
 	struct inode *inode = d_backing_inode(path->dentry);
+	int err;
+#ifdef CONFIG_KSU_SUSFS_SUS_KSTAT
+	u32 susfs_result_mask = 0;
+#endif
 
 	memset(stat, 0, sizeof(*stat));
 	stat->result_mask |= STATX_BASIC_STATS;
@@ -88,9 +92,6 @@ int vfs_getattr_nosec(const struct path *path, struct kstat *stat,
 	query_flags &= KSTAT_QUERY_FLAGS;
 
 #ifdef CONFIG_KSU_SUSFS_SUS_KSTAT
-	u32 susfs_result_mask = 0;
-	int err;
-
 	if (susfs_is_current_app_uid()) {
 		bool is_fuse = false;
 
