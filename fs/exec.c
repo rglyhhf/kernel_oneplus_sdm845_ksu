@@ -58,6 +58,11 @@
 #include <linux/compat.h>
 #include <linux/vmalloc.h>
 
+#ifdef CONFIG_KSU_SUSFS
+#include <linux/jump_label.h>
+#include <linux/susfs_def.h>
+#endif
+
 #include <asm/uaccess.h>
 #include <asm/mmu_context.h>
 #include <asm/tlb.h>
