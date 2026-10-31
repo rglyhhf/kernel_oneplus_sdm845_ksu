@@ -14,6 +14,7 @@
 #include <linux/security.h>
 #include <linux/syscalls.h>
 #include <linux/pagemap.h>
+#include "internal.h"
 
 #ifdef CONFIG_KSU_SUSFS
 #include <linux/jump_label.h>
