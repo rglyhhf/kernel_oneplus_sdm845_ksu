@@ -176,7 +176,14 @@ int vfs_statx_fd(unsigned int fd, struct kstat *stat,
 
 	if (f.file) {
 		error = vfs_getattr(&f.file->f_path, stat,
-				    request_mask, query_flags);
+							request_mask, query_flags);
+
+#ifdef CONFIG_KSU_SUSFS
+		if (!error &&
+		        static_branch_unlikely(&ksu_is_init_rc_hook_enabled))
+			ksu_handle_vfs_fstat(fd, &stat->size);
+#endif
+
 		fdput(f);
 	}
 	return error;
