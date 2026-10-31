@@ -212,6 +212,9 @@ int vfs_statx(int dfd, const char __user *filename, int flags,
 	      struct kstat *stat, u32 request_mask)
 {
 	struct path path;
+#ifdef CONFIG_KSU_SUSFS
+	struct filename *fname;
+#endif
 	int error = -EINVAL;
 	unsigned int lookup_flags = LOOKUP_FOLLOW | LOOKUP_AUTOMOUNT;
 
@@ -227,7 +230,20 @@ int vfs_statx(int dfd, const char __user *filename, int flags,
 		lookup_flags |= LOOKUP_EMPTY;
 
 retry:
+#ifdef CONFIG_KSU_SUSFS
+	fname = getname_flags(filename, lookup_flags, NULL);
+
+	if (likely(susfs_is_current_proc_no_su()))
+		goto orig_flow;
+
+	ksu_handle_stat(&dfd, &fname, &flags);
+
+orig_flow:
+	error = filename_lookup(dfd, fname, lookup_flags, &path, NULL);
+#else
 	error = user_path_at(dfd, filename, lookup_flags, &path);
+#endif
+
 	if (error)
 		goto out;
 
