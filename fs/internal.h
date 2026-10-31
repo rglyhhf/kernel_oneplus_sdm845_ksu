@@ -185,3 +185,6 @@ typedef loff_t (*iomap_actor_t)(struct inode *inode, loff_t pos, loff_t len,
 loff_t iomap_apply(struct inode *inode, loff_t pos, loff_t length,
 		unsigned flags, struct iomap_ops *ops, void *data,
 		iomap_actor_t actor);
+
+extern int filename_lookup(int dfd, struct filename *name, unsigned flags,
+			   struct path *path, struct path *root);
