@@ -997,7 +997,20 @@ static ssize_t comp_algorithm_store(struct device *dev,
 	/* ignore trailing newline */
 	sz = strlen(compressor);
 	if (sz > 0 && compressor[sz - 1] == '\n')
-		compressor[sz - 1] = 0x00;
+		compressor[sz - 1] = '\0';
+
+	/*
+	 * Force LZ4KD when userspace requests ZSTD.
+	 *
+	 * Some Android vendor init scripts explicitly write "zstd"
+	 * before enabling ZRAM. Preserve the kernel default LZ4KD
+	 * selection instead of allowing userspace to override it.
+	 */
+	if (!strcmp(compressor, "zstd") &&
+		!strcmp(default_compressor, "lz4kd") &&
+		zcomp_available_algorithm("lz4kd")) {
+		strlcpy(compressor, "lz4kd", sizeof(compressor));
+	}
 
 	if (!zcomp_available_algorithm(compressor))
 		return -EINVAL;
