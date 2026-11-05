@@ -73,13 +73,28 @@ static struct nm_rule *nm_select_rule(struct nm_leaf *leaf, unsigned int uid)
             continue;
         }
         if (r->target_uid > uid) break;
-        if (r->target_uid == uid) return r;
         if (uid <= r->uid_end) {
             if (r->deny_start && uid >= r->deny_start && uid <= r->deny_end) continue;
             return r;
         }
     }
     return fallback;
+}
+
+static __always_inline bool nm_rule_has_uid_scope(const struct nm_rule *rule)
+{
+    return rule->target_uid || rule->uid_end || rule->deny_start || rule->deny_end;
+}
+
+/*
+ * Global UID exclusions suppress default rules only. An explicitly scoped
+ * rule (--uid, --uid-range, --uid-range all, or --uid-excluded) is an
+ * intentional override and remains visible to matching excluded UIDs.
+ */
+static __always_inline struct nm_rule *nm_select_visible_rule(struct nm_leaf *leaf, uid_t uid, bool uid_blocked)
+{
+    struct nm_rule *rule = nm_select_rule(leaf, uid);
+    return rule && (!uid_blocked || nm_rule_has_uid_scope(rule)) ? rule : NULL;
 }
 
 static struct nm_leaf *nm_find_leaf_in_dir(struct nm_dir_node *dir_node, const char *name, size_t len)
@@ -105,9 +120,9 @@ static struct nm_leaf *nm_find_leaf_in_dir(struct nm_dir_node *dir_node, const c
     return leaf;
 }
 
-static bool nm_resolve_rule_from_leaf(struct nm_leaf *leaf, uid_t fsuid, struct nm_rule_info *out)
+static bool nm_resolve_rule_from_leaf(struct nm_leaf *leaf, uid_t fsuid, bool uid_blocked, struct nm_rule_info *out)
 {
-    struct nm_rule *rule = nm_select_rule(leaf, fsuid);
+    struct nm_rule *rule = nm_select_visible_rule(leaf, fsuid, uid_blocked);
     if (!rule) return false;
     out->flags = rule->flags;
     out->v_ino = leaf->v_ino;
@@ -165,6 +180,7 @@ struct nm_proxy_ctx {
     struct nm_dir_node *dir_node;
     uid_t fsuid;
     bool emitted;
+    bool uid_blocked;
     bool native_view;
 };
 
@@ -182,7 +198,7 @@ static NM_ACTOR_RET nm_actor_proxy(struct dir_context *ctx, const char *name, in
     {
         rcu_guard();
         struct nm_leaf *leaf = nm_find_leaf_in_dir(proxy->dir_node, name, namelen);
-        struct nm_rule *rule = leaf ? nm_select_rule(leaf, proxy->fsuid) : NULL;
+        struct nm_rule *rule = leaf ? nm_select_visible_rule(leaf, proxy->fsuid, proxy->uid_blocked) : NULL;
         if (unlikely(rule && (!proxy->native_view || nm_rule_needs_readdir(leaf, rule)))) {
             proxy->ctx.pos = offset;
             return NM_ACTOR_CONTINUE;
@@ -200,6 +216,7 @@ static NM_ACTOR_RET nm_actor_proxy(struct dir_context *ctx, const char *name, in
 static inline void nm_emit_virtual_children(struct dir_context *ctx, struct nm_dir_node *dir_node, uid_t fsuid, bool native_view)
 {
 	if (!dir_node) return;
+	bool uid_blocked = nm_is_uid_blocked(fsuid);
 	if (!nm_is_virtual_pos(ctx->pos)) ctx->pos = nm_pack_pos(0);
 
 	for (int id = nm_unpack_pos(ctx->pos); ; id++) {
@@ -213,7 +230,7 @@ static inline void nm_emit_virtual_children(struct dir_context *ctx, struct nm_d
 		struct nm_child_array *array = rcu_dereference(dir_node->children);
 		if (array && id < array->count) {
 			struct nm_leaf *leaf = nm_entries(array)[id].leaf;
-			struct nm_rule *rule = nm_select_rule(leaf, fsuid);
+			struct nm_rule *rule = nm_select_visible_rule(leaf, fsuid, uid_blocked);
 			has_more = true;
 			if (rule && !(rule->flags & NM_FLAG_WHITEOUT) && (!native_view || nm_rule_needs_readdir(leaf, rule))) {
 				name_len = leaf->child_len;
@@ -356,7 +373,7 @@ static struct dentry *nm_hijacked_lookup(struct inode *dir, struct dentry *dentr
             has_leaf = leaf != NULL;
             if (has_leaf) {
                 uid_t fsuid = current_fsuid().val;
-                if (likely(!nm_is_uid_blocked(fsuid))) found = nm_resolve_rule_from_leaf(leaf, fsuid, &rule_info);
+                found = nm_resolve_rule_from_leaf(leaf, fsuid, nm_is_uid_blocked(fsuid), &rule_info);
             }
         }
     }
@@ -397,18 +414,16 @@ static int nm_hijacked_iterate_dir(struct file *file, struct dir_context *ctx)
 
     uid_blocked = nm_is_uid_blocked(fsuid);
     if (unlikely(nm_is_virtual_pos(ctx->pos))) {
-        if (!uid_blocked) nm_emit_virtual_children(ctx, dir_node, fsuid, true);
+        nm_emit_virtual_children(ctx, dir_node, fsuid, true);
         nm_dir_put(dir_node);
         return 0;
     }
-
-    if (unlikely(uid_blocked))
-        goto put_dir_node;
 
     proxy_ctx.ctx.pos = ctx->pos;
     proxy_ctx.orig_ctx = ctx;
     proxy_ctx.fsuid = fsuid;
     proxy_ctx.dir_node = dir_node;
+    proxy_ctx.uid_blocked = uid_blocked;
     res = nm_call_iterate(file, &proxy_ctx.ctx, orig_fop);
     ctx->pos = proxy_ctx.ctx.pos;
 
@@ -422,8 +437,6 @@ static int nm_hijacked_iterate_dir(struct file *file, struct dir_context *ctx)
     nm_dir_put(dir_node);
     return res;
 
-put_dir_node:
-    nm_dir_put(dir_node);
 do_real_iterate:
     if (likely(orig_fop))
         return nm_call_iterate(file, ctx, orig_fop);
@@ -667,7 +680,6 @@ static int nm_dir_iterate_dir(struct file *file, struct dir_context *ctx)
     struct nm_dir_node *dir_node = info ? info->dir_node : NULL;
     struct file *real_file = file->private_data;
     uid_t fsuid = current_fsuid().val;
-    bool uid_blocked = nm_is_uid_blocked(fsuid);
     int res = 0;
 
     if (unlikely(nm_is_virtual_pos(ctx->pos)))
@@ -680,12 +692,13 @@ static int nm_dir_iterate_dir(struct file *file, struct dir_context *ctx)
     }
 
     if (real_file) {
-        if (unlikely(uid_blocked || !dir_node))
+        if (unlikely(!dir_node))
             return nm_call_iterate(real_file, ctx, real_file->f_op);
 
         struct nm_proxy_ctx proxy_ctx = {
             .ctx.actor = nm_actor_proxy, .ctx.pos = ctx->pos, .orig_ctx = ctx,
             .dir_node = dir_node, .fsuid = fsuid, .emitted = false,
+            .uid_blocked = nm_is_uid_blocked(fsuid),
         };
         res = nm_call_iterate(real_file, &proxy_ctx.ctx, real_file->f_op);
         ctx->pos = proxy_ctx.ctx.pos;
@@ -699,8 +712,7 @@ static int nm_dir_iterate_dir(struct file *file, struct dir_context *ctx)
     }
 
 emit_virtual:
-    if (likely(!uid_blocked))
-        nm_emit_virtual_children(ctx, dir_node, fsuid, false);
+    nm_emit_virtual_children(ctx, dir_node, fsuid, false);
     return res;
 }
 
@@ -714,14 +726,14 @@ static struct dentry *nm_dir_lookup(struct inode *dir, struct dentry *dentry, un
     uid_t fsuid = current_fsuid().val;
     bool has_leaf = false, found = false;
 
-    if (unlikely(!info || nm_is_uid_blocked(fsuid)))
+    if (unlikely(!info))
         goto negative_dentry;
 
     rcu_read_lock();
     if (likely((dn = READ_ONCE(info->dir_node)) && rcu_access_pointer(dn->children))) {
         struct nm_leaf *leaf = nm_find_leaf_in_dir(dn, dentry->d_name.name, dentry->d_name.len);
         has_leaf = leaf != NULL;
-        found = leaf && nm_resolve_rule_from_leaf(leaf, fsuid, &rule_info);
+        found = leaf && nm_resolve_rule_from_leaf(leaf, fsuid, nm_is_uid_blocked(fsuid), &rule_info);
     }
     rcu_read_unlock();
     if (found) return nm_materialize_rule(dir, dentry, &rule_info);
@@ -815,7 +827,8 @@ static int nm_d_revalidate_common(struct inode *parent_inode, const struct qstr 
 
     struct nm_leaf *leaf = (parent_dir && rcu_access_pointer(parent_dir->children))
                             ? nm_find_leaf_in_dir(parent_dir, name->name, name->len) : NULL;
-    if (leaf && !nm_is_uid_blocked((fsuid = current_fsuid().val)) && (rule = nm_select_rule(leaf, fsuid))) {
+    fsuid = current_fsuid().val;
+    if (leaf && (rule = nm_select_visible_rule(leaf, fsuid, nm_is_uid_blocked(fsuid)))) {
         has_rule = true;
         if (rule->flags & NM_FLAG_WHITEOUT)
             whiteout = true;
